@@ -219,7 +219,7 @@ services::Status SVMTrainOneAPI<algorithmFPType, ParameterType, thunder>::comput
 
     if (cacheSize >= nVectors * nVectors * sizeof(algorithmFPType))
     {
-        // TODO: support the simple cache for thunder method
+        //TODO: support the simple cache for thunder method
         cachePtr = SVMCacheOneAPI<noCache, algorithmFPType>::create(cacheSize, nWS, nVectors, xTable, kernel, status);
     }
     else
@@ -260,8 +260,8 @@ services::Status SVMTrainOneAPI<algorithmFPType, ParameterType, thunder>::comput
         diffPrev = diff;
     }
 
-	printf("Number of outer iterations: %zu \n", iter);
-	printf("Number of inner iterations: %zu \n", innerIteration);
+    printf("Number of outer iterations: %zu \n", iter);
+    printf("Number of inner iterations: %zu \n", innerIteration);
 
     SaveResultModel<algorithmFPType> result(alphaBuff, gradBuff, yBuff, C, nVectors);
 
