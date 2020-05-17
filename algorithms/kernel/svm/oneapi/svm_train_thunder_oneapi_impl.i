@@ -56,6 +56,8 @@
 #include "algorithms/kernel/svm/oneapi/svm_train_workset_oneapi.h"
 #include "algorithms/kernel/svm/oneapi/svm_train_result_oneapi.h"
 
+#include <cstdlib>
+
 DAAL_ITTNOTIFY_DOMAIN(svm_train.default.batch);
 
 namespace daal
@@ -257,6 +259,9 @@ services::Status SVMTrainOneAPI<algorithmFPType, ParameterType, thunder>::comput
         if (checkStopCondition(diff, diffPrev, eps, sameLocalDiff)) break;
         diffPrev = diff;
     }
+
+	printf("Number of outer iterations: %zu \n", iter);
+	printf("Number of inner iterations: %zu \n", innerIteration);
 
     SaveResultModel<algorithmFPType> result(alphaBuff, gradBuff, yBuff, C, nVectors);
 
