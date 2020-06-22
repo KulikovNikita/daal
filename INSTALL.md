@@ -77,7 +77,7 @@ For details, see [System Requirements for oneDAL](https://software.intel.com/en-
 
     - **Linux\***:
 
-            ./dev/download/download_micromkl.sh
+            ./dev/download_micromkl.sh
 
 6. Download and install Intel(R) Threading Building Blocks (Intel(R) TBB):
 
