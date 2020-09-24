@@ -123,7 +123,7 @@ private:
             DAAL_ASSERT(entry != NULL);
             if (entry) _head = entry;
         }
-        Entry * head() const { return _head; }
+        Entry * getHead() const { return _head; }
 
     private:
         Entry * _head;
