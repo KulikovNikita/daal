@@ -47,7 +47,7 @@ DAAL_EXPORT bool isImplementedForDevice(const oneapi::internal::InfoDevice & dev
 class TypeRegistrationCheckerIface
 {
 public:
-    virtual bool operator()(algorithms::AlgorithmContainerIface *) = 0;
+    virtual bool operator()(algorithms::AlgorithmContainerIface *) const = 0;
 };
 
 /**
@@ -60,7 +60,10 @@ class DynamicTypeRegistrationChecker : public TypeRegistrationCheckerIface
 public:
     DynamicTypeRegistrationChecker() {}
 
-    virtual bool operator()(algorithms::AlgorithmContainerIface * ptr_to_check) DAAL_C11_OVERRIDE { return dynamic_cast<T *>(ptr_to_check) != NULL; }
+    virtual bool operator()(algorithms::AlgorithmContainerIface * ptr_to_check) const DAAL_C11_OVERRIDE 
+    { 
+        return dynamic_cast<T *>(ptr_to_check) != NULL; 
+    }
 };
 
 /**
@@ -76,9 +79,9 @@ public:
         DynamicTypeRegistrationChecker<T> * detector_ptr = new DynamicTypeRegistrationChecker<T>();
         add(detector_ptr);
     }
-    bool check(daal::algorithms::AlgorithmContainerIface * ptr_to_check)
+    bool check(daal::algorithms::AlgorithmContainerIface * ptr_to_check) const
     {
-        for (Entry * it = _list.head(); it != NULL; it = it->next)
+        for (Entry * it = getList().getHead(); it != NULL; it = it->getNext())
             if ((*it->checker_ptr)(ptr_to_check)) return true;
         return false;
     }
@@ -92,6 +95,7 @@ private:
     struct Entry : public daal::Base
     {
         Entry(TypeRegistrationCheckerIface * new_checker, Entry * cur_head) : checker_ptr(new_checker), next(cur_head) {}
+        Entry* getNext() const { return next; }
 
         TypeRegistrationCheckerIface * checker_ptr;
         Entry * next;
@@ -119,7 +123,7 @@ private:
             DAAL_ASSERT(entry != NULL);
             if (entry) _head = entry;
         }
-        Entry * head() { return _head; }
+        Entry * head() const { return _head; }
 
     private:
         Entry * _head;
@@ -129,6 +133,7 @@ private:
 
     void add(TypeRegistrationCheckerIface * new_checker) { _list.add(new_checker); }
     List _list;
+    const List& getList() const { return _list; }
 };
 
 /**
