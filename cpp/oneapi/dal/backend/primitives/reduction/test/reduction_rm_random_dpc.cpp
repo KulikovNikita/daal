@@ -108,13 +108,13 @@ public:
     }
 
     array<float_t> groundtruth_rw() const {
-        auto res = array<float_t>::full(height_, binary_.init_value);
+        auto res = array<float_t>::full(height_, binary);
         auto* res_ptr = res.get_mutable_data();
         for (std::int64_t j = 0; j < height_; ++j) {
             const auto row_acc = row_accessor<const float_t>{ input_table_ }.pull({ j, j + 1 });
             for (std::int64_t i = 0; i < width_; ++i) {
                 const auto val = row_acc[i];
-                res_ptr[j] = binary_(res_ptr[j], unary_(val));
+                res_ptr[j] = binary::native_host_v(res_ptr[j], unary::native_host_v<(val));
             }
         }
         return res;
@@ -188,7 +188,7 @@ public:
         float_t* out_ptr = out_array.get_mutable_data();
 
         reduction_t reducer(this->get_queue());
-        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_, unary_, { out_event })
+        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_t{}, unary_t{}, { out_event })
             .wait_and_throw();
 
         check_output_rw(out_array);
@@ -204,7 +204,7 @@ public:
         float_t* out_ptr = out_array.get_mutable_data();
 
         reduction_t reducer(this->get_queue());
-        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_, unary_, { out_event })
+        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_t{}, unary_t{}, { out_event })
             .wait_and_throw();
 
         check_output_cw(out_array);
@@ -220,7 +220,7 @@ public:
         float_t* out_ptr = out_array.get_mutable_data();
 
         reduction_t reducer(this->get_queue());
-        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_, unary_, { out_event })
+        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_t{}, unary_t{}, { out_event })
             .wait_and_throw();
 
         check_output_cw(out_array);
@@ -236,15 +236,15 @@ public:
         float_t* out_ptr = out_array.get_mutable_data();
 
         reduction_t reducer(this->get_queue());
-        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_, unary_, { out_event })
+        reducer(inp_ptr, out_ptr, width_, height_, stride_, binary_t{}, unary_t{}, { out_event })
             .wait_and_throw();
 
         check_output_cw(out_array);
     }
 
 private:
-    const binary_t binary_{};
-    const unary_t unary_{};
+    const binary::native_host_t<float_t, binary_t> binary_{};
+    const unary::native_host_t<float_t, unary_t> unary_{};
     std::int64_t width_;
     std::int64_t stride_;
     std::int64_t height_;
