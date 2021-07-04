@@ -50,9 +50,9 @@ public:
 
     void generate() {
         arg_ = GENERATE(-7., 0, 3.);
-        width_ = GENERATE(7, 707, 5);
-        stride_ = GENERATE(707, 812, 1024);
-        height_ = GENERATE(171, 999, 1001);
+        width_ = GENERATE(7, 707, 5, 251, 511);
+        stride_ = GENERATE(707, 812, 1024, 4096);
+        height_ = GENERATE(171, 999, 1001, 4097);
         CAPTURE(arg_, width_, stride_, height_);
     }
 
@@ -166,7 +166,7 @@ public:
         for (auto i = 0; i < height_; ++i) {
             const auto diff = arr[i] - gtv;
             if (diff < -tol || tol < diff) {
-                CAPTURE(gtv, arr[i], diff, tol);
+                CAPTURE(i, gtv, arr[i], diff, tol);
                 FAIL();
             }
         }
@@ -179,7 +179,7 @@ public:
         for (auto i = 0; i < width_; ++i) {
             const auto diff = arr[i] - gtv;
             if (diff < -tol || tol < diff) {
-                CAPTURE(gtv, arr[i], diff, tol);
+                CAPTURE(i, gtv, arr[i], diff, tol);
                 FAIL();
             }
         }

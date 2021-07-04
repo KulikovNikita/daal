@@ -50,9 +50,11 @@ public:
     }
 
     void generate_special() {
-        width_ = GENERATE(28, 960, 2000, 3072);
-        height_ = GENERATE(1024, 4096);
-        stride_ = height_;
+        //width_ = GENERATE(28, 960, 2000);
+        //height_ = GENERATE(1024, 4096, 16384);
+        width_ = GENERATE(28);
+        height_ = GENERATE(1024, 4096, 16384, 65536);
+        stride_ = width_;
         CAPTURE(width_, stride_, height_);
     }
 
@@ -147,6 +149,10 @@ public:
                            binary_desc());
     }
 
+    bool too_wide_for_sacc_narrow() {
+        return false;
+    }
+
     template <typename reduction_t>
     void test_raw_reduce(const std::string& name) {
         auto [inp_array, inp_event] = input();
@@ -178,7 +184,13 @@ public:
 
     void test_raw_cw_reduce_super_accum_wide() {
         using reduction_t = reduction_rm_cw_super_accum_wide<float_t, binary_t, unary_t>;
-        const auto name = fmt::format("SuperAccumulator CW Reduction: {}", desc());
+        const auto name = fmt::format("Super Accumulator Wide CW Reduction: {}", desc());
+        test_raw_reduce<reduction_t>(name);
+    }
+
+    void test_raw_cw_reduce_super_accum_narrow() {
+        using reduction_t = reduction_rm_cw_super_accum_narrow<float_t, binary_t, unary_t>;
+        const auto name = fmt::format("Super Accumulator Narrow CW Reduction: {}", desc());
         test_raw_reduce<reduction_t>(name);
     }
 

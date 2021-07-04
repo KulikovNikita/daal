@@ -20,67 +20,56 @@
 
 namespace oneapi::dal::backend::primitives {
 
-namespace detail::reduction_rm_cw_super_accum_wide {
+namespace detail::reduction_rm_cw_super_accum_narrow {
 
 template <typename UnaryOp, int f, int b>
 class reduction_kernel {
     using super_accums = super_accumulators<float, false>;
 
 public:
+    constexpr static inline std::int64_t rows_per_block = f * b;
     constexpr static inline float zero = 0.f;
     constexpr static inline int folding = f;
     constexpr static inline int block = b;
 
-    reduction_kernel(std::int32_t width,
-                     std::int32_t stride,
+    reduction_kernel(std::int32_t stride,
                      std::int64_t height,
                      const float* data,
                      std::int64_t* bins,
                      const UnaryOp& unary)
-            : width_(width),
-              stride_(stride),
+            : stride_(stride),
               height_(height),
               data_(data),
               bins_(bins),
               unary_(unary) {}
 
     void operator()(sycl::nd_item<2> it) const {
-        // Acumulators for working in width
-        float accs[folding] = { zero };
+        float acc = zero;
         //
-        const std::int64_t vid = it.get_global_id(1);
+        const std::int32_t bid = it.get_group(1);
+        const std::int32_t lid = it.get_local_id(1);
         const std::int32_t hid = it.get_global_id(0);
-        const std::int32_t hwg = it.get_global_range(0);
         //
         // Reduction Section
         //
+        const std::int64_t srid = bid * rows_per_block + lid;
         for (std::int32_t i = 0; i < block; ++i) {
             // Current dataset row
-            const std::int64_t rid = vid * block + i;
-            for (std::int32_t j = 0; j < folding; ++j) {
-                // Current dataset col number
-                const auto cid = hid + j * hwg;
-                // Check for row and col to be in dataset
-                const bool handle = (rid < height_) && (cid < width_);
-                // Access to the value in row-major order
-                // All arithmetics should work in std::int64_t
-                const auto& val = data_[cid + rid * stride_];
-                accs[j] += handle ? unary_(val) : zero;
-            }
+            const std::int64_t rid = srid + i * folding;
+            // Check for row and col to be in dataset
+            const bool handle = rid < height_;
+            // Access to the value in row-major order
+            // All arithmetics should work in std::int64_t
+            const auto& val = data_[hid + rid * stride_];
+            acc += handle ? unary_(val) : zero;
         }
         //
         // Super counter Section
         //
-        for (std::int32_t j = 0; j < folding; ++j) {
-            const auto cid = hid + j * hwg;
-            if (cid < width_) {
-                bins_.add(accs[j], cid);
-            }
-        }
+        bins_.add(acc, hid);
     }
 
 private:
-    const std::int32_t width_;
     const std::int32_t stride_;
     const std::int64_t height_;
     const float* const data_;
@@ -98,16 +87,17 @@ inline sycl::event reduction_impl(sycl::queue& queue,
                            const UnaryOp& unary = {},
                            const std::vector<sycl::event>& deps = {}) {
     using kernel_t = reduction_kernel<UnaryOp, folding, block_size>;
-    constexpr int bl = kernel_t::block;
-    const auto n_blocks = height / bl + bool(height % bl);
-    const auto wg = std::min<std::int64_t>(device_max_wg_size(queue), width);
-    const auto cfolding = width / wg + bool(width % wg);
+    const auto max_wg = device_max_wg_size(queue);
+    const auto cfolding = max_wg / width;
     if (cfolding == folding) {
+        constexpr int rpb = kernel_t::rows_per_block;
+        const auto n_blocks = (height / rpb) + bool(height % rpb);
+        ONEDAL_ASSERT((n_blocks * folding * block) >= height);
+        ONEDAL_ASSERT((width * folding) <= max_wg);
         return queue.submit([&](sycl::handler& h) {
             h.depends_on(deps);
-            h.parallel_for<kernel_t>(make_multiple_nd_range_2d({ wg, n_blocks }, { wg, 1l }),
-                                     kernel_t(dal::detail::integral_cast<std::int32_t>(width),
-                                              dal::detail::integral_cast<std::int32_t>(stride),
+            h.parallel_for<kernel_t>(make_multiple_nd_range_2d({ width, folding * n_blocks }, { width, folding }),
+                                     kernel_t(dal::detail::integral_cast<std::int32_t>(stride),
                                               height,
                                               data,
                                               bins,
@@ -153,15 +143,15 @@ inline sycl::event finalization(sycl::queue& queue,
     });
 }
 
-} // namespace detail::reduction_rm_cw_super_accum_wide
+} // namespace detail::reduction_rm_cw_super_accum_narrow
 
 template <typename Float, typename BinaryOp, typename UnaryOp>
-reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::reduction_rm_cw_super_accum_wide(
+reduction_rm_cw_super_accum_narrow<Float, BinaryOp, UnaryOp>::reduction_rm_cw_super_accum_narrow(
     sycl::queue& q)
         : q_(q) {}
 
 template <typename Float, typename BinaryOp, typename UnaryOp>
-sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator()(
+sycl::event reduction_rm_cw_super_accum_narrow<Float, BinaryOp, UnaryOp>::operator()(
     const Float* input,
     Float* output,
     std::int64_t width,
@@ -171,7 +161,7 @@ sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator
     const BinaryOp& binary,
     const UnaryOp& unary,
     const event_vector& deps) const {
-    using namespace detail::reduction_rm_cw_super_accum_wide;
+    using namespace detail::reduction_rm_cw_super_accum_narrow;
     auto reduction_event = reduction_impl<UnaryOp, max_folding, block_size>(q_,
                                                                             input,
                                                                             width,
@@ -184,7 +174,7 @@ sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator
 }
 
 template <typename Float, typename BinaryOp, typename UnaryOp>
-sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator()(
+sycl::event reduction_rm_cw_super_accum_narrow<Float, BinaryOp, UnaryOp>::operator()(
     const Float* input,
     Float* output,
     std::int64_t width,
@@ -197,7 +187,7 @@ sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator
 }
 
 template <typename Float, typename BinaryOp, typename UnaryOp>
-sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator()(
+sycl::event reduction_rm_cw_super_accum_narrow<Float, BinaryOp, UnaryOp>::operator()(
     const Float* input,
     Float* output,
     std::int64_t width,
@@ -220,7 +210,7 @@ sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator
 }
 
 template <typename Float, typename BinaryOp, typename UnaryOp>
-sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator()(
+sycl::event reduction_rm_cw_super_accum_narrow<Float, BinaryOp, UnaryOp>::operator()(
     const Float* input,
     Float* output,
     std::int64_t width,
@@ -231,7 +221,7 @@ sycl::event reduction_rm_cw_super_accum_wide<Float, BinaryOp, UnaryOp>::operator
     return this->operator()(input, output, width, height, width, binary, unary, deps);
 }
 
-#define INSTANTIATE(F, B, U) template class reduction_rm_cw_super_accum_wide<F, B, U>;
+#define INSTANTIATE(F, B, U) template class reduction_rm_cw_super_accum_narrow<F, B, U>;
 
 #define INSTANTIATE_FLOAT(B, U) INSTANTIATE(float, B<float>, U<float>);
 

@@ -32,6 +32,11 @@ auto reduction_rm_cw<Float, BinaryOp, UnaryOp>::propose_method(std::int64_t widt
         if (((wg * sacc_wide_folding) >= width) && (width >= wg)) {
             return reduction_method::super_accum_wide;
         }
+        constexpr int sacc_narrow_folding = sacc_narrow_t::max_folding;
+        const int min_width = wg / sacc_narrow_folding;
+        if ((wg >= width) && (width >= min_width)) {
+            return reduction_method::super_accum_narrow;
+        }
     }
     if ((height >= wg) && (height > width)) {
         return reduction_method::naive_local;
@@ -61,6 +66,10 @@ sycl::event reduction_rm_cw<Float, BinaryOp, UnaryOp>::operator()(reduction_meth
     if constexpr (is_sum && is_flt) {
         if (method == reduction_method::super_accum_wide) {
             const sacc_wide_t kernel{ q_ };
+            return kernel(input, output, width, height, stride, binary, unary, deps);
+        }
+        if (method == reduction_method::super_accum_narrow) {
+            const sacc_narrow_t kernel{ q_ };
             return kernel(input, output, width, height, stride, binary, unary, deps);
         }
     }
